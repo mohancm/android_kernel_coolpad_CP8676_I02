@@ -873,7 +873,29 @@ first_try:
 		ret = -EBADMSG;
 	} else {
 		/* Fire the request */
-		struct completion *done;
+		struct usb_request *req;
+
+		/*
+		 * Sanity Check: even though data_len can't be used
+		 * uninitialized at the time I write this comment, some
+		 * compilers complain about this situation.
+		 * In order to keep the code clean from warnings, data_len is
+		 * being initialized to -EINVAL during its declaration, which
+		 * means we can't rely on compiler anymore to warn no future
+		 * changes won't result in data_len being used uninitialized.
+		 * For such reason, we're adding this redundant sanity check
+		 * here.
+		 */
+		if (unlikely(data_len == -EINVAL)) {
+			WARN(1, "%s: data_len == -EINVAL\n", __func__);
+			ret = -EINVAL;
+			goto error_lock;
+		}
+
+		if (io_data->aio) {
+			req = usb_ep_alloc_request(ep->ep, GFP_ATOMIC);
+			if (unlikely(!req))
+				goto error_lock;
 
 		struct usb_request *req = ep->req;
 		req->complete = ffs_epfile_io_complete;
